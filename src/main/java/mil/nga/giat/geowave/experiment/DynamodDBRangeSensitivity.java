@@ -21,11 +21,12 @@ import com.amazonaws.services.dynamodbv2.model.QueryRequest;
 import com.amazonaws.services.dynamodbv2.model.QueryResult;
 import mil.nga.giat.geowave.datastore.dynamodb.DynamoDBOperations;
 import mil.nga.giat.geowave.datastore.dynamodb.DynamoDBOptions;
+import mil.nga.giat.geowave.experiment.Statistics.DATABASE;
 import mil.nga.giat.geowave.test.DynamoDBTestEnvironment;
 
 public class DynamodDBRangeSensitivity
 { 
-	private static long TOTAL = 100L;
+	private static long TOTAL = 10000L;
 	private static int SAMPLE_SIZE = 10;
 	private static String tableName = "test";
 	private static String partitionKeyName = "partition_key";
@@ -42,7 +43,7 @@ public class DynamodDBRangeSensitivity
 	// decomposition we end up with 10's of thousands of ranges, now that could
 	// be multiplied by the number of hashes/partitions, but there still is some
 	// logical cap on the number of ranges that we'll ever realistically use)
-	private static long MAX_RANGES = 1000L;
+	private static long MAX_RANGES = 100000L;
 
 	public static void main(
 			final String[] args )
@@ -51,6 +52,7 @@ public class DynamodDBRangeSensitivity
 		DynamoDBTestEnvironment env = DynamoDBTestEnvironment.getInstance();
 		env.setup();
 		
+		Statistics.initializeFile(DATABASE.DYNAMODB);
 		final DynamoDBOptions options = new DynamoDBOptions();
 		options.setEndpoint("http://127.0.0.1:8000");
 		DynamoDBOperations operations = new DynamoDBOperations(options);
@@ -186,6 +188,7 @@ public class DynamodDBRangeSensitivity
 							i * 10));
 		}
 
+		Statistics.closeCSVFile();
 		env.tearDown();
 	}
 
@@ -199,7 +202,7 @@ public class DynamodDBRangeSensitivity
 			return null;
 		}
 		
-		long ctr = 0;
+		
 		for (int i = 0; i < SAMPLE_SIZE; i++) {
 			final StopWatch sw = new StopWatch();
 
@@ -218,6 +221,7 @@ public class DynamodDBRangeSensitivity
 				
 			}
 			
+			long ctr = 0;
 			sw.start();
 			for(QueryRequest request : requests){
 				QueryResult result = operations.getClient().query(request);
@@ -225,21 +229,26 @@ public class DynamodDBRangeSensitivity
 				//System.out.println(" Count is  " +result.getCount() + " scanned count is " + result.getScannedCount());
 				
 				Iterator<Map<String, AttributeValue>> firstIter = result.getItems().iterator();
+				
+				ctr += result.getCount();
 				while (firstIter.hasNext()) {
 					firstIter.next();
-					ctr++;
+					//ctr++;
 				}
 				
+		
 				while((result.getLastEvaluatedKey() != null) && !result.getLastEvaluatedKey().isEmpty()){
-					Iterator<Map<String, AttributeValue>> it = result.getItems().iterator();
-
-					while (it.hasNext()) {
-						it.next();
-						ctr++;
-					}
-					
 					request.setExclusiveStartKey(result.getLastEvaluatedKey());
 					result = operations.getClient().query(request);
+					
+					Iterator<Map<String, AttributeValue>> it = result.getItems().iterator();
+
+					ctr += result.getCount();
+					while (it.hasNext()) {
+						it.next();
+						//ctr++;
+					}
+					
 				}				
 			}
 			
@@ -248,7 +257,7 @@ public class DynamodDBRangeSensitivity
 			
 			if (ctr != TOTAL) {
 				System.err.println(
-						"experimentFullScan " + interval + " " + ctr);
+						"ERROR: experimentFullScan " + interval + " " + ctr);
 			}
 			scanResults[i] = sw.getTime();
 		}
@@ -279,7 +288,7 @@ public class DynamodDBRangeSensitivity
 				QueryRequest request = new QueryRequest();
 				request.addExpressionAttributeValuesEntry(":val", new AttributeValue().withN(Long.toString(partitionVal)));
 				request.addExpressionAttributeValuesEntry(":startJ", new AttributeValue().withN(Long.toString(j)));
-				request.addExpressionAttributeValuesEntry(":endJ", new AttributeValue().withN(Long.toString(j + interval * 2)));
+				request.addExpressionAttributeValuesEntry(":endJ", new AttributeValue().withN(Long.toString(j + interval * 2-1)));
 				request.setTableName(tableName);
 				request.setKeyConditionExpression(condition);
 				requests.add(request);
@@ -302,6 +311,9 @@ public class DynamodDBRangeSensitivity
 				}
 				
 				while((result.getLastEvaluatedKey() != null) && !result.getLastEvaluatedKey().isEmpty()){
+					request.setExclusiveStartKey(result.getLastEvaluatedKey());
+					result = operations.getClient().query(request);
+					
 					Iterator<Map<String, AttributeValue>> it = result.getItems().iterator();
 					
 					while (it.hasNext()) {
@@ -309,8 +321,6 @@ public class DynamodDBRangeSensitivity
 						ctr++;
 					}
 					
-					request.setExclusiveStartKey(result.getLastEvaluatedKey());
-					result = operations.getClient().query(request);
 				}				
 			}
 			
@@ -319,7 +329,7 @@ public class DynamodDBRangeSensitivity
 			
 			if (ctr != expectedResults) {
 				System.err.println(
-						"experimentSkipScan " + interval + " " + ctr);
+						"ERROR: experimentSkipScan, Interval is " + interval + " Count is " + ctr + " Expected " + expectedResults);
 			}
 			scanResults[i] = sw.getTime();
 	
@@ -349,7 +359,7 @@ public class DynamodDBRangeSensitivity
 			QueryRequest queryRequest = new QueryRequest();
 			queryRequest.addExpressionAttributeValuesEntry(":val", new AttributeValue().withN(Long.toString(partitionVal)));
 			queryRequest.addExpressionAttributeValuesEntry(":startJ", new AttributeValue().withN(Long.toString(start)));
-			queryRequest.addExpressionAttributeValuesEntry(":endJ", new AttributeValue().withN(Long.toString(start + cnt * 2)));
+			queryRequest.addExpressionAttributeValuesEntry(":endJ", new AttributeValue().withN(Long.toString(start + cnt * 2-1)));
 			queryRequest.setTableName(tableName);
 			queryRequest.setKeyConditionExpression(condition);
 			requests.add(queryRequest);
@@ -368,15 +378,16 @@ public class DynamodDBRangeSensitivity
 				
 				
 				while((result.getLastEvaluatedKey() != null) && !result.getLastEvaluatedKey().isEmpty()){
+					request.setExclusiveStartKey(result.getLastEvaluatedKey());
+					result = operations.getClient().query(request);
+					
 					Iterator<Map<String, AttributeValue>> it = result.getItems().iterator();
 
 					while (it.hasNext()) {
 						it.next();
 						ctr++;
 					}
-					
-					request.setExclusiveStartKey(result.getLastEvaluatedKey());
-					result = operations.getClient().query(request);
+						
 				}				
 			}
 			
@@ -384,7 +395,7 @@ public class DynamodDBRangeSensitivity
 
 			if (ctr != cnt) {
 				System.err.println(
-						"extraData " + cnt + " " + ctr);
+						"ERROR: extraData. Expected count is " + cnt + " Count got " + ctr);
 			}
 			scanResults[i] = sw.getTime();
 		}

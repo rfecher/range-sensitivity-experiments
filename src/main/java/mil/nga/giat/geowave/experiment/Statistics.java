@@ -1,14 +1,26 @@
 package mil.nga.giat.geowave.experiment;
 
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.Arrays;
 
 public class Statistics
 {
+	enum DATABASE{
+		ACCUMULO,
+		HBASE,
+		CASSANDRA,
+		DYNAMODB,
+		NONE
+	}
+	
 	double[] data;
 	int size;
 	private final long rangeCount;
 	private final long entryCount;
-
+	private static PrintWriter writer = null;
+	
+	
 	public Statistics(
 			final double[] data,
 			final long rangeCount,
@@ -19,6 +31,19 @@ public class Statistics
 		size = data.length;
 	}
 
+	
+	public static void initializeFile(
+			DATABASE database) {
+		
+		try{
+		    writer = new PrintWriter(database.name() + "_statistics.csv", "UTF-8");
+		    writer.println(getCSVHeader());
+		} catch (IOException e) {
+			System.out.println("Can't write into file. Printing to screen instead");
+		   writer = null;
+		}
+	}
+	
 	double getMean() {
 		double sum = 0.0;
 		for (final double a : data) {
@@ -82,8 +107,16 @@ public class Statistics
 	}
 
 	public void printStats() {
-		// TODO write it to a file instead
-		System.err.println(
-				toCSVRow());
+		if(writer == null){
+			System.err.println(toCSVRow());			
+		}
+		else{
+			writer.println(toCSVRow());
+		}
+	}
+	
+	public static void closeCSVFile(){
+		if(writer != null)
+			writer.close();
 	}
 }

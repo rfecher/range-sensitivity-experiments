@@ -1,21 +1,30 @@
 package mil.nga.giat.geowave.experiment;
 
+import java.io.IOException;
 import java.util.Random;
 
 import org.apache.commons.lang3.time.StopWatch;
+import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.NamespaceDescriptor;
+import org.apache.hadoop.hbase.client.BufferedMutator;
+import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.RowMutations;
+import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.client.Table;
 
 import mil.nga.giat.geowave.core.index.lexicoder.Lexicoders;
 import mil.nga.giat.geowave.core.index.lexicoder.LongLexicoder;
-import mil.nga.giat.geowave.datastore.hbase.io.HBaseWriter;
-import mil.nga.giat.geowave.datastore.hbase.operations.BasicHBaseOperations;
+import mil.nga.giat.geowave.datastore.hbase.util.ConnectionPool;
 import mil.nga.giat.geowave.test.HBaseStoreTestEnvironment;
 import mil.nga.giat.geowave.test.ZookeeperTestEnvironment;
 
 public class HBaseRangeSensitivity
 {
-	private static long TOTAL = 100000L;
+	private static long TOTAL = 100L;
 	private static int SAMPLE_SIZE = 10;
 
 	// there's probably a cap on the ranges before it just takes ridiculously
@@ -27,7 +36,7 @@ public class HBaseRangeSensitivity
 	// decomposition we end up with 10's of thousands of ranges, now that could
 	// be multiplied by the number of hashes/partitions, but there still is some
 	// logical cap on the number of ranges that we'll ever realistically use)
-	private static long MAX_RANGES = 1000000L;
+	private static long MAX_RANGES = 1000L;
 
 	public static void main(
 			final String[] args )
@@ -39,28 +48,20 @@ public class HBaseRangeSensitivity
 		
 		final HBaseStoreTestEnvironment env = HBaseStoreTestEnvironment.getInstance();
 		env.setup();
-		final BasicHBaseOperations operations = new BasicHBaseOperations(z.getZookeeper(),
-																	     "");
 		
-		String[] columnFamily = {"partition_key", "value" };
+		Connection connection = ConnectionPool.getInstance().getConnection(z.getZookeeper());
 		
-		/**
-		 * Create writer and table
-		 */
-		HBaseWriter writer = operations.createWriter("test", columnFamily, true);
-		/**
-		 * TODO: Add the required property
-		c.tableOperations().create(
-				"test");
-		c.tableOperations().setProperty(
-				"test",
-				"table.cache.block.enable",
-				"false");
-		c.tableOperations().setProperty(
-				"test",
-				"table.cache.index.enable",
-				"false"); **/
+		NamespaceDescriptor namespace_desc = NamespaceDescriptor.create("simple_test").build();
+		connection.getAdmin().createNamespace(namespace_desc);
 		
+		
+		HTableDescriptor table_desc = new HTableDescriptor("test");
+		table_desc.addFamily( new HColumnDescriptor("parition_key"));
+		table_desc.addFamily( new HColumnDescriptor("value"));
+		
+		connection.getAdmin().createTable(table_desc);
+		
+		BufferedMutator writer = connection.getBufferedMutator(table_desc.getTableName());
 		final LongLexicoder lexicoder = Lexicoders.LONG;
 		long ctr = 0;
 		StopWatch sw = new StopWatch();
@@ -68,7 +69,6 @@ public class HBaseRangeSensitivity
 		while (ctr < TOTAL * 2) {
 			final RowMutations rowMutation = new RowMutations(lexicoder.toByteArray(ctr));
 
-			ctr += 2;
 			final byte[] value = new byte[500];
 			new Random().nextBytes(
 					value);
@@ -77,10 +77,13 @@ public class HBaseRangeSensitivity
 			
 			rowMutation.add(p);
 
-			writer.write(rowMutation);
+			writer.mutate(rowMutation.getMutations());
+			ctr += 2;
 		}
 		sw.stop();
 		writer.close();
+		
+		Table table = connection.getTable(table_desc.getTableName());
 		
 		System.err.println(
 				"ingest: " + sw.getTime());
@@ -89,30 +92,30 @@ public class HBaseRangeSensitivity
 		System.err.println(
 				Statistics.getCSVHeader());
 
-		/**
+		
 		Statistics.printStats(
 				allData(
-						c,
+						table,
 						1));
 		Statistics.printStats(
 				allData(
-						c,
+						table,
 						2));
 		for (long i = 10; i < TOTAL; i *= 10) {
 			Statistics.printStats(
 					allData(
-							c,
+							table,
 							i));
 		}
 		Statistics.printStats(
 				allData(
-						c,
+						table,
 						TOTAL / 2));
 		Statistics.printStats(
 				allData(
-						c,
+						table,
 						TOTAL));
-
+		/**
 		Statistics.printStats(
 				oneRange(
 						c,
@@ -152,10 +155,10 @@ public class HBaseRangeSensitivity
 		env.tearDown();
 	}
 
-	/**private static Statistics allData(
-			final Connector c,
-			final long interval )
-			throws TableNotFoundException {
+	private static Statistics allData(
+			final Table t,
+			final long interval ) throws IOException {
+
 		final LongLexicoder lexicoder = Lexicoders.LONG;
 		double[] scanResults = new double[SAMPLE_SIZE];
 		long rangeCnt = 0;
@@ -163,51 +166,41 @@ public class HBaseRangeSensitivity
 		if (TOTAL / interval > MAX_RANGES) {
 			return null;
 		}
+	
+		
 		for (int i = 0; i < SAMPLE_SIZE; i++) {
 			final StopWatch sw = new StopWatch();
-			final BatchScanner s = c.createBatchScanner(
-					"test",
-					new Authorizations(),
-					16);
-			List<Range> ranges = new ArrayList<Range>();
-			for (long j = 0; j < TOTAL * 2; j += (interval * 2)) {
-				ranges.add(
-						new Range(
-								new Text(
-										lexicoder.toByteArray(
-												j)),
-								true,
-
-								new Text(
-										lexicoder.toByteArray(
-												j + interval * 2 - 1)),
-								false));
-			}
-			s.setRanges(
-					ranges);
-			rangeCnt = ranges.size();
-			final Iterator<Entry<Key, Value>> it = s.iterator();
 			long ctr = 0;
 			sw.start();
-			while (it.hasNext()) {
-				it.next();
-				ctr++;
+			for (long j = 0; j < TOTAL * 2; j += (interval * 2)) {
+				
+				
+				Scan scan = new Scan(lexicoder.toByteArray(j), lexicoder.toByteArray(
+						j + interval * 2 - 1));
+						
+				
+				ResultScanner scanResult = t.getScanner(scan);
+				
+				for (Result rr = scanResult.next(); rr != null; rr = scanResult.next()) {
+		             ++ctr;
+				}
+				++rangeCnt;
 			}
 			sw.stop();
+
 
 			if (ctr != TOTAL) {
 				System.err.println(
 						"experimentFullScan " + interval + " " + ctr);
 			}
 			scanResults[i] = sw.getTime();
-			s.close();
 		}
 		return new Statistics(
 				scanResults,
 				rangeCnt,
 				expectedResults);
 	}
-
+	/**
 	private static Statistics skipIntervals(
 			final Connector c,
 			final long interval,

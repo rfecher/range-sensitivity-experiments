@@ -12,11 +12,12 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.schemabuilder.Create;
 import mil.nga.giat.geowave.datastore.cassandra.operations.CassandraOperations;
 import mil.nga.giat.geowave.datastore.cassandra.operations.config.CassandraRequiredOptions;
+import mil.nga.giat.geowave.experiment.Statistics.DATABASE;
 import mil.nga.giat.geowave.test.CassandraStoreTestEnvironment;
 
 public class CassandraRangeSensitivity
 {
-	private static long TOTAL = 100000L;
+	private static long TOTAL = 10000L;
 	private static int SAMPLE_SIZE = 10;
 	private static String keyspaceName = "test_keyspace";
 	private static String tableName = "test";
@@ -36,7 +37,7 @@ public class CassandraRangeSensitivity
 	// decomposition we end up with 10's of thousands of ranges, now that could
 	// be multiplied by the number of hashes/partitions, but there still is some
 	// logical cap on the number of ranges that we'll ever realistically use)
-	private static long MAX_RANGES = 1000000L;
+	private static long MAX_RANGES = 100000L;
 
 	public static void main(
 			final String[] args )
@@ -45,9 +46,13 @@ public class CassandraRangeSensitivity
 		final CassandraStoreTestEnvironment env = CassandraStoreTestEnvironment.getInstance();
 		env.setup();
 		
+		Statistics.initializeFile(DATABASE.CASSANDRA);
+		
 		final CassandraRequiredOptions options = new CassandraRequiredOptions();
 		options.setContactPoint("127.0.0.1");
 		options.setGeowaveNamespace(keyspaceName);
+		
+		
 		final CassandraOperations operations = new CassandraOperations(options);
 		
 		operations.getSession().execute("Use " + keyspaceName);
@@ -171,6 +176,7 @@ public class CassandraRangeSensitivity
 		} 
 		
 		
+		Statistics.closeCSVFile();
 		env.tearDown();
 		
 	}
@@ -194,6 +200,7 @@ public class CassandraRangeSensitivity
 				BoundStatement bound = rangeQuery.bind(j, (j + interval * 2 - 1));
 				ResultSet results = operations.getSession().execute(bound);
 				
+				rangeCnt += 1;
 				while(results.one() != null)
 					++ctr;
 			}
@@ -228,7 +235,7 @@ public class CassandraRangeSensitivity
 			for (long j = 0; j < TOTAL * 2; j += (skipCnt * 2)) {
 				BoundStatement bound = rangeQuery.bind(j, (j + interval * 2));
 				ResultSet results = operations.getSession().execute(bound);
-				
+				rangeCnt += 1;
 				while(results.one() != null)
 					++ctr;
 			}
@@ -262,7 +269,7 @@ public class CassandraRangeSensitivity
 			sw.start();
 			BoundStatement bound = rangeQuery.bind(start, (start + cnt * 2));
 			ResultSet results = operations.getSession().execute(bound);
-			
+			rangeCnt += 1;
 			while(results.one() != null)
 				++ctr;
 			
