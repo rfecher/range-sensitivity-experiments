@@ -51,11 +51,11 @@ public class HBaseRangeSensitivity
 		
 		Connection connection = ConnectionPool.getInstance().getConnection(z.getZookeeper());
 		
-		NamespaceDescriptor namespace_desc = NamespaceDescriptor.create("simple_test").build();
+		NamespaceDescriptor namespace_desc = NamespaceDescriptor.create("simple_test2").build();
 		connection.getAdmin().createNamespace(namespace_desc);
 		
 		
-		HTableDescriptor table_desc = new HTableDescriptor("test");
+		HTableDescriptor table_desc = new HTableDescriptor("test2");
 		table_desc.addFamily( new HColumnDescriptor("parition_key"));
 		table_desc.addFamily( new HColumnDescriptor("value"));
 		
