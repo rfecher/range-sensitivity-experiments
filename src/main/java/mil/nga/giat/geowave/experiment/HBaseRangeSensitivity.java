@@ -65,6 +65,8 @@ public class HBaseRangeSensitivity
 		final LongLexicoder lexicoder = Lexicoders.LONG;
 		long ctr = 0;
 		StopWatch sw = new StopWatch();
+		
+		System.out.println("Starting ingestion for HBase");
 		sw.start();
 		while (ctr < TOTAL * 2) {
 			final RowMutations rowMutation = new RowMutations(lexicoder.toByteArray(ctr));
@@ -73,11 +75,11 @@ public class HBaseRangeSensitivity
 			new Random().nextBytes(
 					value);
 			
-			Put p = new Put(value);
-			
+			Put p = new Put(lexicoder.toByteArray(ctr));
+			p.addColumn("test".getBytes(), "value".getBytes(), value);
 			rowMutation.add(p);
 
-			writer.mutate(rowMutation.getMutations());
+			writer.mutate(p);
 			ctr += 2;
 		}
 		sw.stop();
