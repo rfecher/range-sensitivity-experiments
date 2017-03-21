@@ -24,7 +24,7 @@ import mil.nga.giat.geowave.datastore.dynamodb.DynamoDBOptions;
 import mil.nga.giat.geowave.experiment.Statistics.DATABASE;
 import mil.nga.giat.geowave.test.DynamoDBTestEnvironment;
 
-public class DynamodDBRangeSensitivity
+public class DynamoDBRangeSensitivity
 { 
 	private static long TOTAL = 10000L;
 	private static int SAMPLE_SIZE = 10;
