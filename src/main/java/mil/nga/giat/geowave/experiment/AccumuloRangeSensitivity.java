@@ -22,12 +22,13 @@ import org.apache.hadoop.io.Text;
 import mil.nga.giat.geowave.core.index.lexicoder.Lexicoders;
 import mil.nga.giat.geowave.core.index.lexicoder.LongLexicoder;
 import mil.nga.giat.geowave.datastore.accumulo.util.ConnectorPool;
+import mil.nga.giat.geowave.experiment.Statistics.DATABASE;
 import mil.nga.giat.geowave.test.AccumuloStoreTestEnvironment;
 import mil.nga.giat.geowave.test.ZookeeperTestEnvironment;
 
 public class AccumuloRangeSensitivity
 {
-	private static long TOTAL = 100000L;
+	private static long TOTAL = 10000L;
 	private static int SAMPLE_SIZE = 10;
 
 	// there's probably a cap on the ranges before it just takes ridiculously
@@ -39,7 +40,7 @@ public class AccumuloRangeSensitivity
 	// decomposition we end up with 10's of thousands of ranges, now that could
 	// be multiplied by the number of hashes/partitions, but there still is some
 	// logical cap on the number of ranges that we'll ever realistically use)
-	private static long MAX_RANGES = 1000000L;
+	private static long MAX_RANGES = 100000L;
 
 	public static void main(
 			final String[] args )
@@ -49,6 +50,9 @@ public class AccumuloRangeSensitivity
 		z.setup();
 		final AccumuloStoreTestEnvironment a = AccumuloStoreTestEnvironment.getInstance();
 		a.setup();
+		
+		Statistics.initializeFile(DATABASE.ACCUMULO);
+		
 		final Connector c = ConnectorPool.getInstance().getConnector(
 				a.getZookeeper(),
 				a.getAccumuloInstance(),
@@ -68,6 +72,8 @@ public class AccumuloRangeSensitivity
 		final BatchWriter w = c.createBatchWriter(
 				"test",
 				new BatchWriterConfig());
+		
+		System.out.println("Starting Ingestion for Accumulo");
 		final LongLexicoder lexicoder = Lexicoders.LONG;
 		long ctr = 0;
 		StopWatch sw = new StopWatch();
@@ -162,6 +168,8 @@ public class AccumuloRangeSensitivity
 							i,
 							i * 10));
 		}
+		
+		Statistics.closeCSVFile();
 		a.tearDown();
 		z.tearDown();
 	}

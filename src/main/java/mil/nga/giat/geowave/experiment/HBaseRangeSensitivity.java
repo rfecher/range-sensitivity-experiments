@@ -80,6 +80,8 @@ public class HBaseRangeSensitivity
 		final LongLexicoder lexicoder = Lexicoders.LONG;
 		long ctr = 0;
 		StopWatch sw = new StopWatch();
+		
+		System.out.println("Starting ingestion for HBase");
 		sw.start();
 		while (ctr < TOTAL * 2) {
 			final RowMutations rowMutation = new RowMutations(

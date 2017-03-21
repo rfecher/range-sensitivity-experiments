@@ -17,7 +17,7 @@ import mil.nga.giat.geowave.test.CassandraStoreTestEnvironment;
 
 public class CassandraRangeSensitivity
 {
-	private static long TOTAL = 10000L;
+	private static long TOTAL = 50000L;
 	private static int SAMPLE_SIZE = 10;
 	private static String keyspaceName = "test_keyspace";
 	private static String tableName = "test";
@@ -37,7 +37,7 @@ public class CassandraRangeSensitivity
 	// decomposition we end up with 10's of thousands of ranges, now that could
 	// be multiplied by the number of hashes/partitions, but there still is some
 	// logical cap on the number of ranges that we'll ever realistically use)
-	private static long MAX_RANGES = 100000L;
+	private static long MAX_RANGES = 500000L;
 
 	public static void main(
 			final String[] args )
@@ -192,6 +192,7 @@ public class CassandraRangeSensitivity
 			return null;
 		}
 		for (int i = 0; i < SAMPLE_SIZE; i++) {
+			rangeCnt = 0;
 			final StopWatch sw = new StopWatch();
 			
 			long ctr = 0;
@@ -228,6 +229,7 @@ public class CassandraRangeSensitivity
 		long expectedResults = (long) Math.ceil(
 				(double) TOTAL / (double) skipCnt) * interval;
 		for (int i = 0; i < SAMPLE_SIZE; i++) {
+			rangeCnt = 0;
 			final StopWatch sw = new StopWatch();
 			
 			long ctr = 0;
@@ -261,6 +263,7 @@ public class CassandraRangeSensitivity
 		long rangeCnt = 0;
 		long expectedResults = cnt;
 		for (int i = 0; i < SAMPLE_SIZE; i++) {
+			rangeCnt = 0;
 			final StopWatch sw = new StopWatch();
 
 			long ctr = 0;
