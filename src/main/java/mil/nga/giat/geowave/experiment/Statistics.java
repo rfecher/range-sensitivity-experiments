@@ -2,25 +2,29 @@ package mil.nga.giat.geowave.experiment;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Date;
 
 public class Statistics
 {
-	enum DATABASE{
+	enum DATABASE {
 		ACCUMULO,
 		HBASE,
 		CASSANDRA,
 		DYNAMODB,
 		NONE
 	}
-	
+
 	double[] data;
 	int size;
 	private final long rangeCount;
 	private final long entryCount;
 	private static PrintWriter writer = null;
-	
-	
+
+	private static final SimpleDateFormat sdf = new SimpleDateFormat(
+			"yyyy-MM-dd_HH-mm-ss");
+
 	public Statistics(
 			final double[] data,
 			final long rangeCount,
@@ -31,19 +35,21 @@ public class Statistics
 		size = data.length;
 	}
 
-	
 	public static void initializeFile(
-			DATABASE database) {
-		
-		try{
-		    writer = new PrintWriter(database.name() + "_statistics.csv", "UTF-8");
-		    writer.println(getCSVHeader());
-		} catch (IOException e) {
+			DATABASE database ) {
+
+		try {
+			writer = new PrintWriter(
+					database.name() + "_statistics-" + sdf.format(new Date()) + ".csv",
+					"UTF-8");
+			writer.println(getCSVHeader());
+		}
+		catch (IOException e) {
 			System.out.println("Can't write into file. Printing to screen instead");
-		   writer = null;
+			writer = null;
 		}
 	}
-	
+
 	double getMean() {
 		double sum = 0.0;
 		for (final double a : data) {
@@ -62,13 +68,11 @@ public class Statistics
 	}
 
 	double getStdDev() {
-		return Math.sqrt(
-				getVariance());
+		return Math.sqrt(getVariance());
 	}
 
 	public double median() {
-		Arrays.sort(
-				data);
+		Arrays.sort(data);
 
 		if ((data.length % 2) == 0) {
 			return (data[(data.length / 2) - 1] + data[data.length / 2]) / 2.0;
@@ -78,9 +82,8 @@ public class Statistics
 
 	@Override
 	public String toString() {
-		return "Statistics [data=" + Arrays.toString(
-				data) + ", size=" + size + ", rangeCount=" + rangeCount + ", entryCount=" + entryCount + "]\n"
-				+ toCSVRow();
+		return "Statistics [data=" + Arrays.toString(data) + ", size=" + size + ", rangeCount=" + rangeCount
+				+ ", entryCount=" + entryCount + "]\n" + toCSVRow();
 	}
 
 	public static String getCSVHeader() {
@@ -107,16 +110,16 @@ public class Statistics
 	}
 
 	public void printStats() {
-		if(writer == null){
-			System.err.println(toCSVRow());			
+		if (writer == null) {
+			System.err.println(toCSVRow());
 		}
-		else{
+		else {
 			writer.println(toCSVRow());
+			System.err.println(toCSVRow());
 		}
 	}
-	
-	public static void closeCSVFile(){
-		if(writer != null)
-			writer.close();
+
+	public static void closeCSVFile() {
+		if (writer != null) writer.close();
 	}
 }
