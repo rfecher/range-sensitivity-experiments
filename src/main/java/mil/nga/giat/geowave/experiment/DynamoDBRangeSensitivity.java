@@ -90,100 +90,144 @@ public class DynamoDBRangeSensitivity
 				TableUtils.waitUntilActive(
 						operations.getClient(),
 						tableName);
+
+				System.out.println(" Starting ingestion for dynamoDB ");
+
+				long ctr = 0;
+				StopWatch sw = new StopWatch();
+				sw.start();
+				while (ctr < ExperimentMain.TOTAL * 2) {
+
+					final byte[] value = new byte[500];
+					new Random().nextBytes(value);
+
+					Map<String, AttributeValue> items = new HashMap<>();
+					items.put(
+							partitionKeyName,
+							new AttributeValue().withN("12345"));
+					items.put(
+							sortKeyName,
+							new AttributeValue().withN(Long.toString(ctr)));
+					items.put(
+							dataColName,
+							new AttributeValue().withBS(ByteBuffer.wrap(value)));
+
+					// Item item = new
+					// Item().withPrimaryKey(partitionKeyName,
+					// partitionVal).
+					// withNumber(sortKeyName, ctr).withBinary(dataColName,
+					// value);
+
+					operations.getClient().putItem(
+							tableName,
+							items);
+
+					ctr += 2;
+
+				}
+				sw.stop();
+
+				System.err.println("ingest: " + sw.getTime());
+
 			}
 			catch (TableNeverTransitionedToStateException | InterruptedException e) {
 				e.printStackTrace();
 			}
 		}
 
-		System.out.println(" Starting ingestion for dynamoDB ");
-		long ctr = 0;
-		StopWatch sw = new StopWatch();
-		sw.start();
-		while (ctr < ExperimentMain.TOTAL * 2) {
+		if (args.length > 1) {
+			long ctr = Integer.parseInt(args[1]);
+			StopWatch sw = new StopWatch();
+			sw.start();
+			long total = Integer.parseInt(args[2]);
+			while (ctr < total * 2) {
 
-			final byte[] value = new byte[500];
-			new Random().nextBytes(value);
+				final byte[] value = new byte[500];
+				new Random().nextBytes(value);
 
-			Map<String, AttributeValue> items = new HashMap<>();
-			items.put(
-					partitionKeyName,
-					new AttributeValue().withN("12345"));
-			items.put(
-					sortKeyName,
-					new AttributeValue().withN(Long.toString(ctr)));
-			items.put(
-					dataColName,
-					new AttributeValue().withBS(ByteBuffer.wrap(value)));
+				Map<String, AttributeValue> items = new HashMap<>();
+				items.put(
+						partitionKeyName,
+						new AttributeValue().withN("12345"));
+				items.put(
+						sortKeyName,
+						new AttributeValue().withN(Long.toString(ctr)));
+				items.put(
+						dataColName,
+						new AttributeValue().withBS(ByteBuffer.wrap(value)));
 
-			// Item item = new Item().withPrimaryKey(partitionKeyName,
-			// partitionVal).
-			// withNumber(sortKeyName, ctr).withBinary(dataColName, value);
+				// Item item = new
+				// Item().withPrimaryKey(partitionKeyName,
+				// partitionVal).
+				// withNumber(sortKeyName, ctr).withBinary(dataColName,
+				// value);
 
-			operations.getClient().putItem(
-					tableName,
-					items);
+				operations.getClient().putItem(
+						tableName,
+						items);
 
-			ctr += 2;
+				ctr += 2;
 
+			}
+			sw.stop();
+
+			System.err.println("ingest: " + sw.getTime());
 		}
-		sw.stop();
+		else {
+			// TODO write a CSV to file
+			System.err.println(Statistics.getCSVHeader());
 
-		System.err.println("ingest: " + sw.getTime());
-
-		// TODO write a CSV to file
-		System.err.println(Statistics.getCSVHeader());
-
-		Statistics.printStats(allData(
-				operations,
-				1));
-		Statistics.printStats(allData(
-				operations,
-				2));
-		for (long i = 10; i < ExperimentMain.TOTAL; i *= 10) {
 			Statistics.printStats(allData(
 					operations,
-					i));
-		}
-		Statistics.printStats(allData(
-				operations,
-				ExperimentMain.TOTAL / 2));
-		Statistics.printStats(allData(
-				operations,
-				ExperimentMain.TOTAL));
+					1));
+			Statistics.printStats(allData(
+					operations,
+					2));
+			for (long i = 10; i < ExperimentMain.TOTAL; i *= 10) {
+				Statistics.printStats(allData(
+						operations,
+						i));
+			}
+			Statistics.printStats(allData(
+					operations,
+					ExperimentMain.TOTAL / 2));
+			Statistics.printStats(allData(
+					operations,
+					ExperimentMain.TOTAL));
 
-		Statistics.printStats(oneRange(
-				operations,
-				1));
-		Statistics.printStats(oneRange(
-				operations,
-				2));
-		for (long i = 10; i < ExperimentMain.TOTAL; i *= 10) {
 			Statistics.printStats(oneRange(
 					operations,
-					i));
-		}
-		Statistics.printStats(oneRange(
-				operations,
-				ExperimentMain.TOTAL / 2));
-		Statistics.printStats(skipIntervals(
-				operations,
-				1,
-				2));
-		Statistics.printStats(skipIntervals(
-				operations,
-				2,
-				4));
-		for (long i = 10; (i * 10) < ExperimentMain.TOTAL; i *= 10) {
+					1));
+			Statistics.printStats(oneRange(
+					operations,
+					2));
+			for (long i = 10; i < ExperimentMain.TOTAL; i *= 10) {
+				Statistics.printStats(oneRange(
+						operations,
+						i));
+			}
+			Statistics.printStats(oneRange(
+					operations,
+					ExperimentMain.TOTAL / 2));
 			Statistics.printStats(skipIntervals(
 					operations,
-					i,
-					i * 10));
-		}
+					1,
+					2));
+			Statistics.printStats(skipIntervals(
+					operations,
+					2,
+					4));
+			for (long i = 10; (i * 10) < ExperimentMain.TOTAL; i *= 10) {
+				Statistics.printStats(skipIntervals(
+						operations,
+						i,
+						i * 10));
+			}
 
-		Statistics.closeCSVFile();
-		if (env != null) {
-			env.tearDown();
+			Statistics.closeCSVFile();
+			if (env != null) {
+				env.tearDown();
+			}
 		}
 	}
 

@@ -30,137 +30,180 @@ public class CassandraRangeSensitivity
 			final String[] args )
 			throws Exception {
 
-		final CassandraStoreTestEnvironment env = CassandraStoreTestEnvironment.getInstance();
-		env.setup();
-
-		Statistics.initializeFile(DATABASE.CASSANDRA);
-
+		CassandraStoreTestEnvironment env = null;
 		final CassandraRequiredOptions options = new CassandraRequiredOptions();
-		options.setContactPoint("127.0.0.1");
 		options.setGeowaveNamespace(keyspaceName);
+		if (args.length == 0) {
+			env = CassandraStoreTestEnvironment.getInstance();
+			options.setContactPoint("127.0.0.1");
+			env.setup();
+		}
+		else {
+			options.setContactPoint(args[0]);
+			tableName = args[1];
+		}
 
 		final CassandraOperations operations = new CassandraOperations(
 				options);
-
-		operations.getSession().execute(
-				"Use " + keyspaceName);
-		/**
-		 * Create the table
-		 */
-		final Create create = operations.getCreateTable(tableName);
-		create.addPartitionKey(
-				partitionKeyName,
-				DataType.bigint());
-		create.addClusteringColumn(
-				clusterKeyName,
-				DataType.bigint());
-		create.addColumn(
-				dataColName,
-				DataType.blob());
-		operations.executeCreateTable(
-				create,
-				tableName);
-
-		/**
-		 * Insert helper
-		 */
-
-		insertQuery = operations.getSession().prepare(
-				"insert into test (partition_key, cluster_key, data) values (12345, ?, ?)");
-
-		long ctr = 0;
-		StopWatch sw = new StopWatch();
-		sw.start();
-		while (ctr < ExperimentMain.TOTAL * 2) {
-
-			final byte[] value = new byte[500];
-			new Random().nextBytes(value);
-
-			BoundStatement statement = insertQuery.bind(
-					ctr,
-					ByteBuffer.wrap(value));
+		if (!operations.tableExists(tableName)) {
 			operations.getSession().execute(
-					statement);
-			// insertHelper.value(partitionKeyName, partitionVal)
-			// .value(clusterKeyName, ctr)
-			// .value(dataColName, value);
+					"Use " + keyspaceName);
+			/**
+			 * Create the table
+			 */
+			final Create create = operations.getCreateTable(tableName);
+			create.addPartitionKey(
+					partitionKeyName,
+					DataType.bigint());
+			create.addClusteringColumn(
+					clusterKeyName,
+					DataType.bigint());
+			create.addColumn(
+					dataColName,
+					DataType.blob());
+			operations.executeCreateTable(
+					create,
+					tableName);
 
-			ctr += 2;
+			/**
+			 * Insert helper
+			 */
+
+			insertQuery = operations.getSession().prepare(
+					"insert into " + tableName + " (partition_key, cluster_key, data) values (12345, ?, ?)");
+			long ctr = args.length > 2 ? Integer.parseInt(args[2]) : 0;
+			StopWatch sw = new StopWatch();
+			sw.start();
+			long total = (args.length > 3 ? Integer.parseInt(args[3]) : ExperimentMain.TOTAL);
+			while (ctr < total * 2) {
+
+				final byte[] value = new byte[500];
+				new Random().nextBytes(value);
+
+				BoundStatement statement = insertQuery.bind(
+						ctr,
+						ByteBuffer.wrap(value));
+				operations.getSession().execute(
+						statement);
+				// insertHelper.value(partitionKeyName, partitionVal)
+				// .value(clusterKeyName, ctr)
+				// .value(dataColName, value);
+
+				ctr += 2;
+			}
+			sw.stop();
+			/**
+			 * BoundStatement example = rangeQuery.bind(2L,4L); ResultSet
+			 * results = operations.getSession().execute(example);
+			 * 
+			 * Row row; while( (row = results.one()) != null){
+			 * System.out.println( "CAME HERE " + row.getLong(1)); return;
+			 * 
+			 * }
+			 **/
+
+			System.err.println("ingest: " + sw.getTime());
 		}
-		sw.stop();
+		else if (args.length > 2) {
+			insertQuery = operations.getSession().prepare(
+					"insert into " + tableName + " (partition_key, cluster_key, data) values (12345, ?, ?)");
+			long ctr = args.length > 2 ? Integer.parseInt(args[2]) : 0;
+			StopWatch sw = new StopWatch();
+			sw.start();
+			long total = (args.length > 3 ? Integer.parseInt(args[3]) : ExperimentMain.TOTAL);
+			while (ctr < total * 2) {
 
-		String select = "select " + dataColName + " from " + tableName + " where " + partitionKeyName + " = "
-				+ partitionVal + " and " + clusterKeyName + " >= ? and " + clusterKeyName + " < ?";
+				final byte[] value = new byte[500];
+				new Random().nextBytes(value);
 
-		System.out.println(select);
-		rangeQuery = operations.getSession().prepare(
-				select);
+				BoundStatement statement = insertQuery.bind(
+						ctr,
+						ByteBuffer.wrap(value));
+				operations.getSession().execute(
+						statement);
+				// insertHelper.value(partitionKeyName, partitionVal)
+				// .value(clusterKeyName, ctr)
+				// .value(dataColName, value);
 
-		/**
-		 * BoundStatement example = rangeQuery.bind(2L,4L); ResultSet results =
-		 * operations.getSession().execute(example);
-		 * 
-		 * Row row; while( (row = results.one()) != null){
-		 * System.out.println("CAME HERE " + row.getLong(1)); return;
-		 * 
-		 * }
-		 **/
+				ctr += 2;
+			}
+			sw.stop();
+			/**
+			 * BoundStatement example = rangeQuery.bind(2L,4L); ResultSet
+			 * results = operations.getSession().execute(example);
+			 * 
+			 * Row row; while( (row = results.one()) != null){
+			 * System.out.println( "CAME HERE " + row.getLong(1)); return;
+			 * 
+			 * }
+			 **/
 
-		System.err.println("ingest: " + sw.getTime());
+			System.err.println("ingest: " + sw.getTime());
+		}
+		if (args.length < 3) {
+			Statistics.initializeFile(DATABASE.CASSANDRA);
+			String select = "select " + dataColName + " from " + tableName + " where " + partitionKeyName + " = "
+					+ partitionVal + " and " + clusterKeyName + " >= ? and " + clusterKeyName + " < ?";
 
-		// TODO write a CSV to file
-		System.err.println(Statistics.getCSVHeader());
+			System.out.println(select);
+			rangeQuery = operations.getSession().prepare(
+					select);
 
-		Statistics.printStats(allData(
-				operations,
-				1));
-		Statistics.printStats(allData(
-				operations,
-				2));
-		for (long i = 10; i < ExperimentMain.TOTAL; i *= 10) {
+			// TODO write a CSV to file
+			System.err.println(Statistics.getCSVHeader());
+
 			Statistics.printStats(allData(
 					operations,
-					i));
-		}
-		Statistics.printStats(allData(
-				operations,
-				ExperimentMain.TOTAL / 2));
-		Statistics.printStats(allData(
-				operations,
-				ExperimentMain.TOTAL));
+					1));
+			Statistics.printStats(allData(
+					operations,
+					2));
+			for (long i = 10; i < ExperimentMain.TOTAL; i *= 10) {
+				Statistics.printStats(allData(
+						operations,
+						i));
+			}
+			Statistics.printStats(allData(
+					operations,
+					ExperimentMain.TOTAL / 2));
+			Statistics.printStats(allData(
+					operations,
+					ExperimentMain.TOTAL));
 
-		Statistics.printStats(oneRange(
-				operations,
-				1));
-		Statistics.printStats(oneRange(
-				operations,
-				2));
-		for (long i = 10; i < ExperimentMain.TOTAL; i *= 10) {
 			Statistics.printStats(oneRange(
 					operations,
-					i));
-		}
-		Statistics.printStats(oneRange(
-				operations,
-				ExperimentMain.TOTAL / 2));
-		Statistics.printStats(skipIntervals(
-				operations,
-				1,
-				2));
-		Statistics.printStats(skipIntervals(
-				operations,
-				2,
-				4));
-		for (long i = 10; (i * 10) < ExperimentMain.TOTAL; i *= 10) {
+					1));
+			Statistics.printStats(oneRange(
+					operations,
+					2));
+			for (long i = 10; i < ExperimentMain.TOTAL; i *= 10) {
+				Statistics.printStats(oneRange(
+						operations,
+						i));
+			}
+			Statistics.printStats(oneRange(
+					operations,
+					ExperimentMain.TOTAL / 2));
 			Statistics.printStats(skipIntervals(
 					operations,
-					i,
-					i * 10));
+					1,
+					2));
+			Statistics.printStats(skipIntervals(
+					operations,
+					2,
+					4));
+			for (long i = 10; (i * 10) < ExperimentMain.TOTAL; i *= 10) {
+				Statistics.printStats(skipIntervals(
+						operations,
+						i,
+						i * 10));
+			}
+
+			Statistics.closeCSVFile();
+			if (env != null) {
+				env.tearDown();
+			}
 		}
-
-		Statistics.closeCSVFile();
-		env.tearDown();
-
 	}
 
 	private static Statistics allData(

@@ -10,6 +10,8 @@
 	<artifactId>range-sensitivity-experiments</artifactId>
 	<name>Range Sensitivity Experiments</name>
 	<description>A module for experiments showing range sensitivity of various distributed key-value stores</description>
+	<properties>
+				<guava.version>19.0</guava.version></properties>
 	<dependencies>
 		<dependency>
 			<groupId>mil.nga.giat</groupId>
