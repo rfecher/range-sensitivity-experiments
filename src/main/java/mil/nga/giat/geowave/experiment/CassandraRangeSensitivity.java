@@ -45,9 +45,9 @@ public class CassandraRangeSensitivity
 
 		final CassandraOperations operations = new CassandraOperations(
 				options);
+		operations.getSession().execute(
+				"Use " + keyspaceName);
 		if (!operations.tableExists(tableName)) {
-			operations.getSession().execute(
-					"Use " + keyspaceName);
 			/**
 			 * Create the table
 			 */
