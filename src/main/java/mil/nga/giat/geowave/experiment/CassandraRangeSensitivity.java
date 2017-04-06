@@ -70,24 +70,29 @@ public class CassandraRangeSensitivity
 			 */
 
 			insertQuery = operations.getSession().prepare(
-					"insert into " + tableName + " (partition_key, cluster_key, data) values (12345, ?, ?)");
+					"insert into " + tableName + " (partition_key, cluster_key, data) values (?, ?, ?)");
 			long ctr = args.length > 2 ? Integer.parseInt(args[2]) : 0;
 			StopWatch sw = new StopWatch();
 			sw.start();
 			long total = (args.length > 3 ? Integer.parseInt(args[3]) : ExperimentMain.TOTAL);
 			while (ctr < total * 2) {
 
-				final byte[] value = new byte[500];
-				new Random().nextBytes(value);
-
-				BoundStatement statement = insertQuery.bind(
-						ctr,
-						ByteBuffer.wrap(value));
-				operations.getSession().execute(
-						statement);
-				// insertHelper.value(partitionKeyName, partitionVal)
-				// .value(clusterKeyName, ctr)
-				// .value(dataColName, value);
+				for(int k=0; k<ExperimentMain.NO_PARTITION_KEYS; ++k)
+				{
+					long partitionKey = partitionVal + k;
+					final byte[] value = new byte[500];
+					new Random().nextBytes(value);
+	
+					BoundStatement statement = insertQuery.bind(
+							partitionKey,
+							ctr,
+							ByteBuffer.wrap(value));
+					operations.getSession().execute(
+							statement);
+					// insertHelper.value(partitionKeyName, partitionVal)
+					// .value(clusterKeyName, ctr)
+					// .value(dataColName, value);
+				}
 
 				ctr += 2;
 			}
@@ -113,17 +118,22 @@ public class CassandraRangeSensitivity
 			long total = (args.length > 3 ? Integer.parseInt(args[3]) : ExperimentMain.TOTAL);
 			while (ctr < total * 2) {
 
-				final byte[] value = new byte[500];
-				new Random().nextBytes(value);
-
-				BoundStatement statement = insertQuery.bind(
-						ctr,
-						ByteBuffer.wrap(value));
-				operations.getSession().execute(
-						statement);
-				// insertHelper.value(partitionKeyName, partitionVal)
-				// .value(clusterKeyName, ctr)
-				// .value(dataColName, value);
+				for(int k=0; k<ExperimentMain.NO_PARTITION_KEYS; ++k)
+				{
+					long partitionKey = partitionVal + k;
+					final byte[] value = new byte[500];
+					new Random().nextBytes(value);
+	
+					BoundStatement statement = insertQuery.bind(
+							partitionKey,
+							ctr,
+							ByteBuffer.wrap(value));
+					operations.getSession().execute(
+							statement);
+					// insertHelper.value(partitionKeyName, partitionVal)
+					// .value(clusterKeyName, ctr)
+					// .value(dataColName, value);
+				}
 
 				ctr += 2;
 			}
@@ -142,8 +152,8 @@ public class CassandraRangeSensitivity
 		}
 		if (args.length < 3) {
 			Statistics.initializeFile(DATABASE.CASSANDRA);
-			String select = "select " + dataColName + " from " + tableName + " where " + partitionKeyName + " = "
-					+ partitionVal + " and " + clusterKeyName + " >= ? and " + clusterKeyName + " < ?";
+			String select = "select " + dataColName + " from " + tableName + " where " + partitionKeyName + " = ?"
+			+ " and " + clusterKeyName + " >= ? and " + clusterKeyName + " < ?";
 
 			System.out.println(select);
 			rangeQuery = operations.getSession().prepare(
@@ -218,31 +228,40 @@ public class CassandraRangeSensitivity
 		for (int i = 0; i < ExperimentMain.SAMPLE_SIZE; i++) {
 			rangeCnt = 0;
 			final StopWatch sw = new StopWatch();
-
-			long ctr = 0;
+	
 			sw.start();
-			for (long j = 0; j < ExperimentMain.TOTAL * 2; j += (interval * 2)) {
-				BoundStatement bound = rangeQuery.bind(
-						j,
-						(j + interval * 2 - 1));
-				ResultSet results = operations.getSession().execute(
-						bound);
+			for(int k=0; k<ExperimentMain.NO_PARTITION_KEYS; ++k)
+			{
+				long ctr = 0;
+				long partitionKey = partitionVal + k;
+				for (long j = 0; j < ExperimentMain.TOTAL * 2; j += (interval * 2)) {
+					BoundStatement bound = rangeQuery.bind(
+							partitionKey,
+							j,
+							(j + interval * 2 - 1));
+					ResultSet results = operations.getSession().execute(
+							bound);
 
-				rangeCnt += 1;
-				while (results.one() != null)
-					++ctr;
+					rangeCnt += 1;
+					while (results.one() != null)
+						++ctr;
+
+				}
+				
+				if (ctr != ExperimentMain.TOTAL) {
+					System.err.println("experimentFullScan " + interval + " " + ctr);
+				}
+				
 			}
 			sw.stop();
 
-			if (ctr != ExperimentMain.TOTAL) {
-				System.err.println("experimentFullScan " + interval + " " + ctr);
-			}
 			scanResults[i] = sw.getTime();
 		}
 		return new Statistics(
 				scanResults,
 				rangeCnt,
-				expectedResults);
+				expectedResults,
+				ExperimentMain.NO_PARTITION_KEYS);
 	}
 
 	private static Statistics skipIntervals(
@@ -256,30 +275,37 @@ public class CassandraRangeSensitivity
 			rangeCnt = 0;
 			final StopWatch sw = new StopWatch();
 
-			long ctr = 0;
-			sw.start();
-			for (long j = 0; j < ExperimentMain.TOTAL * 2; j += (skipCnt * 2)) {
-				BoundStatement bound = rangeQuery.bind(
-						j,
-						(j + interval * 2));
-				ResultSet results = operations.getSession().execute(
-						bound);
-				rangeCnt += 1;
-				while (results.one() != null)
-					++ctr;
-			}
 
+			sw.start();
+			for(int k=0; k<ExperimentMain.NO_PARTITION_KEYS; ++k)
+			{
+				long ctr = 0;
+				long partitionKey = partitionVal + k;
+				for (long j = 0; j < ExperimentMain.TOTAL * 2; j += (skipCnt * 2)) {
+					BoundStatement bound = rangeQuery.bind(
+							partitionKey,
+							j,
+							(j + interval * 2));
+					ResultSet results = operations.getSession().execute(
+							bound);
+					rangeCnt += 1;
+					while (results.one() != null)
+						++ctr;
+				}
+				
+				if (ctr != expectedResults) {
+					System.err.println("experimentSkipScan " + interval + " " + ctr);
+				}
+			}
 			sw.stop();
 
-			if (ctr != expectedResults) {
-				System.err.println("experimentSkipScan " + interval + " " + ctr);
-			}
 			scanResults[i] = sw.getTime();
 		}
 		return new Statistics(
 				scanResults,
 				rangeCnt,
-				expectedResults);
+				expectedResults,
+				ExperimentMain.NO_PARTITION_KEYS);
 	}
 
 	private static Statistics oneRange(
@@ -292,29 +318,35 @@ public class CassandraRangeSensitivity
 			rangeCnt = 0;
 			final StopWatch sw = new StopWatch();
 
-			long ctr = 0;
+			
 			long start = (ExperimentMain.TOTAL * 2 - cnt * 2) / 2L;
-
 			sw.start();
-			BoundStatement bound = rangeQuery.bind(
-					start,
-					(start + cnt * 2));
-			ResultSet results = operations.getSession().execute(
-					bound);
-			rangeCnt += 1;
-			while (results.one() != null)
-				++ctr;
-
-			sw.stop();
-
-			if (ctr != cnt) {
-				System.err.println("extraData " + cnt + " " + ctr);
+			for(int k=0; k<ExperimentMain.NO_PARTITION_KEYS; ++k)
+			{
+				long ctr = 0;
+				long partitionKey = partitionVal + k;
+				BoundStatement bound = rangeQuery.bind(
+						partitionKey,
+						start,
+						(start + cnt * 2));
+				ResultSet results = operations.getSession().execute(
+						bound);
+				rangeCnt += 1;
+				while (results.one() != null)
+					++ctr;
+				
+				if (ctr != cnt) {
+					System.err.println("extraData " + cnt + " " + ctr);
+				}
+				
 			}
+			sw.stop();
 			scanResults[i] = sw.getTime();
 		}
 		return new Statistics(
 				scanResults,
 				rangeCnt,
-				expectedResults);
+				expectedResults,
+				ExperimentMain.NO_PARTITION_KEYS);
 	}
 }
