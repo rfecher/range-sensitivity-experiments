@@ -88,5 +88,13 @@
 				</plugins>
 			</build>
 		</profile>
+		<profile>
+			<id>cassandra-it</id>
+			<properties>
+				<skipITs>false</skipITs>
+				<guava.version>19.0</guava.version>
+				<testStoreType>CASSANDRA</testStoreType>
+			</properties>
+	    </profile>
 	</profiles>
 </project>

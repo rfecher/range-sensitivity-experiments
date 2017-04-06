@@ -18,6 +18,7 @@ public class Statistics
 
 	double[] data;
 	int size;
+	int noPartitionKeys;
 	private final long rangeCount;
 	private final long entryCount;
 	private static PrintWriter writer = null;
@@ -25,14 +26,21 @@ public class Statistics
 	private static final SimpleDateFormat sdf = new SimpleDateFormat(
 			"yyyy-MM-dd_HH-mm-ss");
 
+	public Statistics(final double[] data,
+			final long rangeCount,
+			final long entryCount, 
+			int paritionKeys){
+		this.data = data;
+		this.rangeCount = rangeCount;
+		this.entryCount = entryCount;
+		noPartitionKeys = paritionKeys;
+		size = data.length;
+	}
 	public Statistics(
 			final double[] data,
 			final long rangeCount,
 			final long entryCount ) {
-		this.data = data;
-		this.rangeCount = rangeCount;
-		this.entryCount = entryCount;
-		size = data.length;
+		this(data,rangeCount,entryCount,1);
 	}
 
 	public static void initializeFile(
@@ -87,14 +95,15 @@ public class Statistics
 	}
 
 	public static String getCSVHeader() {
-		return "Range Count, Result Count, Mean (ms), Median (ms), Std Dev (ms)";
+		return "Range Count, Result Count, Parition Keys, Mean (ms), Median (ms), Std Dev (ms)";
 	}
 
 	public String toCSVRow() {
 		return String.format(
-				"%s,%s,%s,%s,%s",
+				"%s,%s,%s,%s,%s,%s",
 				rangeCount,
 				entryCount,
+				noPartitionKeys,
 				getMean(),
 				median(),
 				getStdDev());

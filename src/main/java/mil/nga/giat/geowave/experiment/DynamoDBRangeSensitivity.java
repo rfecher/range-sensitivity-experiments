@@ -42,7 +42,7 @@ public class DynamoDBRangeSensitivity
 		DynamoDBTestEnvironment env = null;
 		Statistics.initializeFile(DATABASE.DYNAMODB);
 		final DynamoDBOptions options = new DynamoDBOptions();
-		//
+		options.setEndpoint("http://127.0.0.1:8000");
 		DynamoDBOperations operations = new DynamoDBOperations(
 				options);
 		if (args.length > 0) {
@@ -85,6 +85,7 @@ public class DynamoDBRangeSensitivity
 		final boolean tableCreated = TableUtils.createTableIfNotExists(
 				operations.getClient(),
 				createTableRequest);
+		
 		if (tableCreated) {
 			try {
 				TableUtils.waitUntilActive(
@@ -97,33 +98,38 @@ public class DynamoDBRangeSensitivity
 				StopWatch sw = new StopWatch();
 				sw.start();
 				while (ctr < ExperimentMain.TOTAL * 2) {
+					
+					for(int i=0; i<ExperimentMain.NO_PARTITION_KEYS; ++i)
+					{
+						long partitionKey = partitionVal + i;
+						final byte[] value = new byte[500];
 
-					final byte[] value = new byte[500];
-					new Random().nextBytes(value);
+						new Random().nextBytes(value);
 
-					Map<String, AttributeValue> items = new HashMap<>();
-					items.put(
-							partitionKeyName,
-							new AttributeValue().withN("12345"));
-					items.put(
-							sortKeyName,
-							new AttributeValue().withN(Long.toString(ctr)));
-					items.put(
-							dataColName,
-							new AttributeValue().withBS(ByteBuffer.wrap(value)));
+						Map<String, AttributeValue> items = new HashMap<>();
+						items.put(
+								partitionKeyName,
+								new AttributeValue().withN(Long.toString(partitionKey)));
+						items.put(
+								sortKeyName,
+								new AttributeValue().withN(Long.toString(ctr)));
+						items.put(
+								dataColName,
+								new AttributeValue().withBS(ByteBuffer.wrap(value)));
 
-					// Item item = new
-					// Item().withPrimaryKey(partitionKeyName,
-					// partitionVal).
-					// withNumber(sortKeyName, ctr).withBinary(dataColName,
-					// value);
+						// Item item = new
+						// Item().withPrimaryKey(partitionKeyName,
+						// partitionVal).
+						// withNumber(sortKeyName, ctr).withBinary(dataColName,
+						// value);
 
-					operations.getClient().putItem(
-							tableName,
-							items);
+						operations.getClient().putItem(
+								tableName,
+								items);
 
+					}
 					ctr += 2;
-
+					
 				}
 				sw.stop();
 
@@ -142,30 +148,33 @@ public class DynamoDBRangeSensitivity
 			long total = Integer.parseInt(args[2]);
 			while (ctr < total * 2) {
 
-				final byte[] value = new byte[500];
-				new Random().nextBytes(value);
+				for(int i=0; i<ExperimentMain.NO_PARTITION_KEYS; ++i)
+				{
+					long partitionKey = partitionVal + i;
+					final byte[] value = new byte[500];
+					new Random().nextBytes(value);
 
-				Map<String, AttributeValue> items = new HashMap<>();
-				items.put(
-						partitionKeyName,
-						new AttributeValue().withN("12345"));
-				items.put(
-						sortKeyName,
-						new AttributeValue().withN(Long.toString(ctr)));
-				items.put(
-						dataColName,
-						new AttributeValue().withBS(ByteBuffer.wrap(value)));
+					Map<String, AttributeValue> items = new HashMap<>();
+					items.put(
+							partitionKeyName,
+							new AttributeValue().withN(Long.toString(partitionKey)));
+					items.put(
+							sortKeyName,
+							new AttributeValue().withN(Long.toString(ctr)));
+					items.put(
+							dataColName,
+							new AttributeValue().withBS(ByteBuffer.wrap(value)));
 
-				// Item item = new
-				// Item().withPrimaryKey(partitionKeyName,
-				// partitionVal).
-				// withNumber(sortKeyName, ctr).withBinary(dataColName,
-				// value);
+					// Item item = new
+					// Item().withPrimaryKey(partitionKeyName,
+					// partitionVal).
+					// withNumber(sortKeyName, ctr).withBinary(dataColName,
+					// value);
 
-				operations.getClient().putItem(
-						tableName,
-						items);
-
+					operations.getClient().putItem(
+							tableName,
+							items);
+				}
 				ctr += 2;
 
 			}
@@ -249,19 +258,23 @@ public class DynamoDBRangeSensitivity
 				String condition = new String(
 						partitionKeyName + "= :val AND " + sortKeyName + " BETWEEN :startJ AND :endJ");
 
-				QueryRequest request = new QueryRequest();
-				request.setTableName(tableName);
-				request.addExpressionAttributeValuesEntry(
-						":val",
-						new AttributeValue().withN("12345"));
-				request.addExpressionAttributeValuesEntry(
-						":startJ",
-						new AttributeValue().withN(Long.toString(j)));
-				request.addExpressionAttributeValuesEntry(
-						":endJ",
-						new AttributeValue().withN(Long.toString(j + interval * 2 - 1)));
-				request.setKeyConditionExpression(condition);
-				requests.add(request);
+				for(int k=0; k<ExperimentMain.NO_PARTITION_KEYS; ++k)
+				{
+					long partitionKey = partitionVal + k;
+					QueryRequest request = new QueryRequest();
+					request.setTableName(tableName);
+					request.addExpressionAttributeValuesEntry(
+							":val",
+							new AttributeValue().withN(Long.toString(partitionKey)));
+					request.addExpressionAttributeValuesEntry(
+							":startJ",
+							new AttributeValue().withN(Long.toString(j)));
+					request.addExpressionAttributeValuesEntry(
+							":endJ",
+							new AttributeValue().withN(Long.toString(j + interval * 2 - 1)));
+					request.setKeyConditionExpression(condition);
+					requests.add(request);
+				}
 
 			}
 
@@ -297,9 +310,11 @@ public class DynamoDBRangeSensitivity
 
 				}
 			}
-
+			
+			ctr  = ctr/ ExperimentMain.NO_PARTITION_KEYS;
+			
 			sw.stop();
-			rangeCnt = requests.size();
+			rangeCnt = requests.size()/ExperimentMain.NO_PARTITION_KEYS;
 
 			if (ctr != ExperimentMain.TOTAL) {
 				System.err.println("ERROR: experimentFullScan " + interval + " " + ctr);
@@ -309,7 +324,8 @@ public class DynamoDBRangeSensitivity
 		return new Statistics(
 				scanResults,
 				rangeCnt,
-				expectedResults);
+				expectedResults,
+				ExperimentMain.NO_PARTITION_KEYS);
 	}
 
 	private static Statistics skipIntervals(
@@ -328,25 +344,29 @@ public class DynamoDBRangeSensitivity
 				String condition = new String(
 						partitionKeyName + "= :val  AND " + sortKeyName + " BETWEEN :startJ AND :endJ");
 
-				QueryRequest request = new QueryRequest();
-				request.addExpressionAttributeValuesEntry(
-						":val",
-						new AttributeValue().withN(Long.toString(partitionVal)));
-				request.addExpressionAttributeValuesEntry(
-						":startJ",
-						new AttributeValue().withN(Long.toString(j)));
-				request.addExpressionAttributeValuesEntry(
-						":endJ",
-						new AttributeValue().withN(Long.toString(j + interval * 2 - 1)));
-				request.setTableName(tableName);
-				request.setKeyConditionExpression(condition);
-				requests.add(request);
+				for(int k=0; k<ExperimentMain.NO_PARTITION_KEYS; ++k)
+				{
+					long partitionKey = partitionVal + k;
+					QueryRequest request = new QueryRequest();
+					request.addExpressionAttributeValuesEntry(
+							":val",
+							new AttributeValue().withN(Long.toString(partitionKey)));
+					request.addExpressionAttributeValuesEntry(
+							":startJ",
+							new AttributeValue().withN(Long.toString(j)));
+					request.addExpressionAttributeValuesEntry(
+							":endJ",
+							new AttributeValue().withN(Long.toString(j + interval * 2 - 1)));
+					request.setTableName(tableName);
+					request.setKeyConditionExpression(condition);
+					requests.add(request);
+				}
 			}
 			if (requests.size() > ExperimentMain.MAX_RANGES) {
 				return null;
 			}
 
-			rangeCnt = requests.size();
+			rangeCnt = requests.size()/ExperimentMain.NO_PARTITION_KEYS;
 
 			long ctr = 0;
 			sw.start();
@@ -376,7 +396,9 @@ public class DynamoDBRangeSensitivity
 			}
 
 			sw.stop();
-
+			
+			ctr /= ExperimentMain.NO_PARTITION_KEYS;
+			
 			if (ctr != expectedResults) {
 				System.err.println("ERROR: experimentSkipScan, Interval is " + interval + " Count is " + ctr
 						+ " Expected " + expectedResults);
@@ -387,7 +409,8 @@ public class DynamoDBRangeSensitivity
 		return new Statistics(
 				scanResults,
 				rangeCnt,
-				expectedResults);
+				expectedResults,
+				ExperimentMain.NO_PARTITION_KEYS);
 	}
 
 	private static Statistics oneRange(
@@ -404,22 +427,27 @@ public class DynamoDBRangeSensitivity
 
 			String condition = new String(
 					partitionKeyName + "= :val  AND " + sortKeyName + " BETWEEN :startJ AND :endJ");
+			
 
-			QueryRequest queryRequest = new QueryRequest();
-			queryRequest.addExpressionAttributeValuesEntry(
-					":val",
-					new AttributeValue().withN(Long.toString(partitionVal)));
-			queryRequest.addExpressionAttributeValuesEntry(
-					":startJ",
-					new AttributeValue().withN(Long.toString(start)));
-			queryRequest.addExpressionAttributeValuesEntry(
-					":endJ",
-					new AttributeValue().withN(Long.toString(start + cnt * 2 - 1)));
-			queryRequest.setTableName(tableName);
-			queryRequest.setKeyConditionExpression(condition);
-			requests.add(queryRequest);
+			for(int k=0; k<ExperimentMain.NO_PARTITION_KEYS; ++k)
+			{
+				long partitionKey = partitionVal + k;
+				QueryRequest queryRequest = new QueryRequest();
+				queryRequest.addExpressionAttributeValuesEntry(
+						":val",
+						new AttributeValue().withN(Long.toString(partitionKey)));
+				queryRequest.addExpressionAttributeValuesEntry(
+						":startJ",
+						new AttributeValue().withN(Long.toString(start)));
+				queryRequest.addExpressionAttributeValuesEntry(
+						":endJ",
+						new AttributeValue().withN(Long.toString(start + cnt * 2 - 1)));
+				queryRequest.setTableName(tableName);
+				queryRequest.setKeyConditionExpression(condition);
+				requests.add(queryRequest);
+			}
 
-			rangeCnt = requests.size();
+			rangeCnt = requests.size()/ExperimentMain.NO_PARTITION_KEYS;
 			long ctr = 0;
 			sw.start();
 			for (QueryRequest request : requests) {
@@ -448,7 +476,9 @@ public class DynamoDBRangeSensitivity
 			}
 
 			sw.stop();
-
+			
+			ctr /= ExperimentMain.NO_PARTITION_KEYS;
+			
 			if (ctr != cnt) {
 				System.err.println("ERROR: extraData. Expected count is " + cnt + " Count got " + ctr);
 			}
@@ -457,6 +487,7 @@ public class DynamoDBRangeSensitivity
 		return new Statistics(
 				scanResults,
 				rangeCnt,
-				expectedResults);
+				expectedResults,
+				ExperimentMain.NO_PARTITION_KEYS);
 	}
 }
